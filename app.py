@@ -6,7 +6,7 @@ from pathlib import Path
 import httpx
 import yaml
 from fastapi import FastAPI, Query, Request
-from fastapi.responses import FileResponse, PlainTextResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, StreamingResponse
 
 import agents
 import logging
@@ -132,8 +132,10 @@ async def run_game(visitor):
 
 
 @app.get("/api/play")
-async def play(name: str = Query("Guest", max_length=30)):
-    visitor = re.sub(r"[^\w .-]", "", name).strip() or "Guest"
+async def play(name: str = Query(..., max_length=30)):
+    visitor = re.sub(r"[^\w .-]", "", name).strip()
+    if len(visitor) < 2:  # no anonymous games: the page requires a name, and so does the API
+        return JSONResponse({"error": "Enter your name (at least 2 letters or numbers) to play."}, status_code=400)
 
     async def stream():
         global waiting

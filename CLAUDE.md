@@ -70,3 +70,8 @@ closes the table. The portfolio's `doctor-all.sh` runs it alongside the other ap
 ```bash
 .venv/bin/uvicorn app:app --host 127.0.0.1 --port 8765 --reload
 ```
+
+## Next
+
+- LangGraph version of the game loop (dealer and player nodes, conditional edge on "hand over"),
+  with the page highlighting the active node. engine.py and seats.yaml stay as they are.

@@ -52,6 +52,9 @@
   .ev.hand{font:500 12px "JetBrains Mono",monospace;color:var(--agent);text-transform:uppercase;letter-spacing:.08em;padding-top:12px}
   .say{color:var(--muted);font-style:italic}
   .tag{font:500 10px "JetBrains Mono",monospace;background:var(--agent-t);color:var(--agent);border-radius:4px;padding:1px 6px;margin-left:6px}
+  .empty{padding:28px 12px;text-align:center;color:var(--muted)}
+  .empty b{color:var(--ink)}
+  .hint{flex-basis:100%;margin:-2px 2px 0;font-size:12px;color:var(--muted)}
   .foot{color:var(--muted);font-size:13px;margin-top:14px}
   .status{position:sticky;top:8px;z-index:5;box-shadow:0 4px 14px #0000001f;display:flex;align-items:center;gap:10px;min-height:40px;margin-bottom:10px;padding:8px 14px;border-radius:10px;background:var(--agent-t);color:var(--agent);font:500 13px "JetBrains Mono",monospace}
   .status[hidden]{display:none}
@@ -78,9 +81,10 @@
   <h1>Three agents, one <em>Teen Patti</em> table</h1>
   <p class="lede">Enter your name and an AI agent takes your seat. Dealer Raju runs the table, and your agent plays against Meera, betting, bluffing and trading banter over three cards each.</p>
   <div class="start">
-    <input id="name" placeholder="Your name" maxlength="30" autocomplete="off">
-    <button id="go">Deal me in</button>
+    <input id="name" placeholder="Your name (required)" maxlength="30" autocomplete="off" required aria-describedby="nameHint">
+    <button id="go" disabled title="Enter your name first">Deal me in</button>
     <button id="reset" class="ghost" disabled>Reset</button>
+    <div class="hint" id="nameHint">Letters, numbers and spaces, at least 2 characters.</div>
   </div>
   <div class="status" id="status" hidden><span class="dot"></span><span id="statusText"></span><span class="round" id="round"></span></div>
   <div class="table">
@@ -113,23 +117,35 @@ const cardsHTML = cs => cs.map(c=>`<div class="c ${"♥♦".includes(c[1])?"r":"
 const backs = () => '<div class="c back"></div>'.repeat(3);
 const chips = arr => arr.forEach((c,i)=>$("s"+i).querySelector(".chips").textContent=c+" chips");
 
+// Same rule as the server: letters, numbers, space . - only; at least 2 left after cleaning.
+const cleanName = v => v.replace(/[^\p{L}\p{N}_ .-]/gu, "").trim();
+const validName = () => cleanName($("name").value).length >= 2;
+function updateGo(){
+  const ok = validName() && !es;
+  $("go").disabled = !ok;
+  $("go").title = validName() ? "" : "Enter your name first";
+}
 function resetTable(){
   if (es) { es.close(); es = null; }  // closing the stream also stops the game on the server
   clearInterval(timer); status(""); $("round").textContent = "";
-  $("log").innerHTML = ""; $("pot").textContent = "0"; $("go").textContent = "Deal me in";
+  $("log").innerHTML = '<div class="empty">Enter your name and press <b>Deal me in</b>.<br>Your agent takes the left seat and plays against Meera while Dealer Raju runs the table.</div>';
+  $("pot").textContent = "0"; $("go").textContent = "Deal me in";
   document.querySelector(".pot").classList.remove("thinking");
-  [["You",0],["Meera",1]].forEach(([n,i])=>{const s=$("s"+i);s.classList.remove("active","thinking");s.querySelector(".name").textContent=n;s.querySelector(".state").textContent="";s.querySelector(".chips").textContent="";s.querySelector(".cards").innerHTML=""});
-  $("go").disabled = false; $("reset").disabled = true; $("name").disabled = false;
+  [["You",0],["Meera",1]].forEach(([n,i])=>{const s=$("s"+i);s.classList.remove("active","thinking");s.querySelector(".name").textContent=n;s.querySelector(".state").textContent="";s.querySelector(".chips").textContent="";s.querySelector(".cards").innerHTML=backs()});
+  $("reset").disabled = true; $("name").disabled = false; updateGo();
 }
 $("reset").onclick = resetTable;
+$("name").oninput = updateGo;
 $("name").onkeydown = e => { if (e.key === "Enter" && !$("go").disabled) $("go").click(); };
 
 $("go").onclick = () => {
+  if (!validName()) { $("name").focus(); return; }
   resetTable();
+  $("log").innerHTML = "";
   $("go").disabled = true; $("reset").disabled = false; $("name").disabled = true;
   // Relative URL: works at /teenpatti/ behind the router and at / locally.
   status("Connecting to the table…");
-  es = new EventSource("api/play?name=" + encodeURIComponent($("name").value || "Guest"));
+  es = new EventSource("api/play?name=" + encodeURIComponent(cleanName($("name").value)));
   es.onmessage = e => {
     const m = JSON.parse(e.data);
     if (m.type === "queue") status(`The table is busy with another game. You're #${m.position} in line, and your game starts automatically.`);
@@ -156,15 +172,16 @@ $("go").onclick = () => {
     if (m.type === "end") {
       es.close(); es = null; clearInterval(timer); status("Game over. Press Play again for a new game.", false);
       [0,1].forEach(i=>$("s"+i).classList.remove("thinking")); document.querySelector(".pot").classList.remove("thinking");
-      $("go").disabled = false; $("name").disabled = false; $("go").textContent = "Play again";
+      $("name").disabled = false; updateGo(); $("go").textContent = "Play again";
     }
   };
   es.onerror = () => {
     if (!es) return;
     es.close(); es = null; clearInterval(timer);
     status("Lost the connection to the table. Press Deal me in to try again.", false);
-    $("go").disabled = false; $("name").disabled = false;
+    $("name").disabled = false; updateGo();
   };
 };
+resetTable();  // initial empty-table state
 </script>
 </body></html>
