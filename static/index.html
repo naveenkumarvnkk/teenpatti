@@ -9,14 +9,13 @@
 <style>
   :root{
     --bg:#F2EFEA;--ink:#0D0D0D;--accent:#557373;--mist:#DFE5F3;
-    --agent:#5C5A2E;--agent-t:#ECEBDD;
+    --agent:#5B6F8F;--agent-t:#DFE5F3;
     --surface:#FAF8F4;--line:#0D0D0D1a;--muted:#0D0D0Da0;
-    --felt:#5C5A2E;--felt-ink:#F2EFEA;--card:#FFFFFF;--red:#9A3B2E;
+    --felt:#5B6F8F;--felt-ink:#F2EFEA;--card:#FFFFFF;--red:#9A3B2E;
   }
   @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
-    --bg:#0D0D0D;--ink:#F2EFEA;--surface:#17160c;--line:#F2EFEA1f;--muted:#F2EFEAa0;
-    --agent-t:#272401;--felt:#272401;--card:#F2EFEA;--red:#B5543F}}
-  :root[data-theme="dark"]{--bg:#0D0D0D;--ink:#F2EFEA;--surface:#17160c;--line:#F2EFEA1f;--muted:#F2EFEAa0;--agent-t:#272401;--felt:#272401;--card:#F2EFEA;--red:#B5543F}
+    --bg:#0D0D0D;--ink:#F2EFEA;--surface:#141820;--line:#F2EFEA1f;--muted:#F2EFEAa0;--agent:#8FA3C4;--agent-t:#1C2433;--felt:#1F2838;--card:#F2EFEA;--red:#B5543F}}
+  :root[data-theme="dark"]{--bg:#0D0D0D;--ink:#F2EFEA;--surface:#141820;--line:#F2EFEA1f;--muted:#F2EFEAa0;--agent:#8FA3C4;--agent-t:#1C2433;--felt:#1F2838;--card:#F2EFEA;--red:#B5543F}
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 Inter,system-ui,sans-serif}
   main{max-width:920px;margin:0 auto;padding:20px 16px 48px}
@@ -62,7 +61,7 @@
   .dot{width:9px;height:9px;border-radius:50%;background:var(--agent);flex:none}
   .busy .dot{animation:pulse 1s ease-in-out infinite}
   .seat .state{font:500 10px "JetBrains Mono",monospace;letter-spacing:.08em;opacity:.75;min-height:14px}
-  .seat.thinking{box-shadow:0 0 0 2px var(--agent-t),0 0 24px #ECEBDD55}
+  .seat.thinking{box-shadow:0 0 0 2px var(--agent-t),0 0 24px #DFE5F355}
   .seat.thinking .state{opacity:1}
   .pot.thinking #dealer{text-decoration:underline;text-underline-offset:4px}
   .actions{display:none;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 10px;padding:12px;border-radius:12px;border:1px solid var(--agent);background:var(--surface)}
@@ -104,7 +103,7 @@
 </style>
 </head>
 <body><main>
-  <div class="top"><a href="/">← Portfolio</a><span style="color:var(--agent)">AGENTIC AI</span></div>
+  <div class="top"><a href="/">← Portfolio</a><span style="color:var(--agent)">MULTI-AGENTS GAME</span></div>
   <div class="eyebrow">Multi-agent demo</div>
   <h1>You, an agent and a <em>Teen Patti</em> table</h1>
   <p class="lede">Enter your name and take a seat. Dealer Raju runs the table, and you play against Meera, an AI agent who bets, bluffs and trades banter. Play blind or look at your cards, then chaal, raise, ask for a show or pack.</p>
@@ -149,7 +148,7 @@ const $ = id => document.getElementById(id);
 let handNo = 0, winTimer = null;
 function confetti(){
   const c=$("confetti"); c.innerHTML="";
-  const cols=["#5C5A2E","#ECEBDD","#C9A227","#557373","#9A3B2E","#F2EFEA"];
+  const cols=["#5B6F8F","#DFE5F3","#C9A227","#557373","#9A3B2E","#F2EFEA"];
   for(let i=0;i<90;i++){const e=document.createElement("i");
     e.style.cssText=`left:${Math.random()*100}%;background:${cols[i%cols.length]};animation-duration:${2.2+Math.random()*2}s;animation-delay:${Math.random()*.6}s;transform:rotate(${Math.random()*360}deg)`;
     c.append(e);}

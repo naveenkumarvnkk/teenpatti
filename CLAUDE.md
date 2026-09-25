@@ -8,7 +8,7 @@ Teen Patti table and two player agents bet on their three cards. A visitor enter
 
 This is its own project. The portfolio (`~/Documents/Projects/portfolio`) owns the domain and its
 router Worker forwards `/teenpatti/*` here with the prefix stripped. Never put portfolio code here.
-Domain colour: **Agentic AI olive `#5C5A2E`** (tint `#ECEBDD`); follow the portfolio's design system.
+Domain colour: **LLM apps dusty blue `#5B6F8F`** (tint `#DFE5F3`); labelled "Multi-Agents Game"; follow the portfolio's design system.
 
 ## Product rules (from Naveen)
 
