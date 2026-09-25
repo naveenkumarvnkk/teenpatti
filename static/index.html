@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Teen Patti Agents · Naveen Kunisetty</title>
-<meta name="description" content="Three AI agents at a Teen Patti table: a dealer and two players who bet, bluff and banter.">
+<meta name="description" content="Play Teen Patti against an AI agent while an AI dealer runs the table.">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600&family=Instrument+Serif:ital@1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
@@ -65,6 +65,14 @@
   .seat.thinking{box-shadow:0 0 0 2px var(--agent-t),0 0 24px #ECEBDD55}
   .seat.thinking .state{opacity:1}
   .pot.thinking #dealer{text-decoration:underline;text-underline-offset:4px}
+  .actions{display:none;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 10px;padding:12px;border-radius:12px;border:1px solid var(--agent);background:var(--surface)}
+  .actions.on{display:flex}
+  .actions .lbl{font:500 12px "JetBrains Mono",monospace;color:var(--agent);flex-basis:100%}
+  .actions button{background:var(--agent);color:#F2EFEA}
+  .actions button.ghost{background:transparent;color:var(--ink)}
+  .actions .timer{margin-left:auto;font:500 13px "JetBrains Mono",monospace;color:var(--agent)}
+  .c.flip{animation:flip .4s ease both}
+  @keyframes flip{from{transform:rotateY(90deg)}to{transform:none}}
   @keyframes pulse{50%{opacity:.25;transform:scale(.7)}}
   @keyframes up{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
   @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
@@ -78,8 +86,8 @@
 <body><main>
   <div class="top"><a href="/">← Portfolio</a><span style="color:var(--agent)">AGENTIC AI</span></div>
   <div class="eyebrow">Multi-agent demo</div>
-  <h1>Three agents, one <em>Teen Patti</em> table</h1>
-  <p class="lede">Enter your name and an AI agent takes your seat. Dealer Raju runs the table, and your agent plays against Meera, betting, bluffing and trading banter over three cards each.</p>
+  <h1>You, an agent and a <em>Teen Patti</em> table</h1>
+  <p class="lede">Enter your name and take a seat. Dealer Raju runs the table, and you play against Meera, an AI agent who bets, bluffs and trades banter. Play blind or look at your cards, then chaal, raise, ask for a show or pack.</p>
   <div class="start">
     <input id="name" placeholder="Your name (required)" maxlength="30" autocomplete="off" required aria-describedby="nameHint">
     <button id="go" disabled title="Enter your name first">Deal me in</button>
@@ -87,6 +95,15 @@
     <div class="hint" id="nameHint">Letters, numbers and spaces, at least 2 characters.</div>
   </div>
   <div class="status" id="status" hidden><span class="dot"></span><span id="statusText"></span><span class="round" id="round"></span></div>
+  <div class="actions" id="actions" role="group" aria-label="Your move">
+    <span class="lbl" id="actLbl">Your move</span>
+    <button data-a="see" class="ghost">See cards</button>
+    <button data-a="chaal">Chaal</button>
+    <button data-a="raise">Raise</button>
+    <button data-a="show">Show</button>
+    <button data-a="pack" class="ghost">Pack</button>
+    <span class="timer" id="actTimer"></span>
+  </div>
   <div class="table">
     <div class="seat" id="s0"><div class="name">You</div><div class="state"></div><div class="chips"></div><div class="cards"></div></div>
     <div class="pot"><span class="mono">POT</span><b id="pot">0</b><span class="mono" id="dealer">Dealer Raju</span></div>
@@ -97,7 +114,36 @@
 </main>
 <script>
 const $ = id => document.getElementById(id);
-let names = [], dealerName = "Raju", es = null, hands = 3, timer = null;
+let lastTurn = null, names = [], dealerName = "Raju", es = null, hands = 3, timer = null, game = null, token = null, human = [], mine = null;
+const actions = document.querySelectorAll("#actions button");
+function hideActions(){ $("actions").classList.remove("on"); clearInterval(timer); }
+function yourTurn(m){
+  lastTurn = m; clearInterval(timer);
+  [0,1].forEach(i=>$("s"+i).classList.toggle("thinking", i===m.seat));
+  document.querySelector(".pot").classList.remove("thinking");
+  actions.forEach(b=>{
+    const a=b.dataset.a; b.hidden=!m.legal.includes(a); b.disabled=false;
+    if(a==="chaal") b.textContent=`${human.length&&$("s"+m.seat).querySelector(".state").textContent==="SEEN"?"Chaal":"Play blind"} · ${m.chaal}`;
+    if(a==="raise") b.textContent=`Raise · ${m.raise_cost}`;
+  });
+  $("actions").classList.add("on");
+  const tick=()=>{const left=Math.max(0,Math.round(m.deadline-Date.now()/1000));
+    $("actTimer").textContent=left+"s"; status(`Your move, ${m.who}… ${left}s left`);};
+  tick(); timer=setInterval(tick,1000);
+  actions[0].closest(".actions").querySelector("button:not([hidden])").focus({preventScroll:true});
+}
+actions.forEach(b=>b.onclick=async()=>{
+  // Hide first: the next turn event (e.g. after "See cards", it's still my turn) can arrive
+  // before this request returns, and must not be hidden by it.
+  const turn = lastTurn; hideActions(); status("Sent. Waiting for the table…");
+  let err = "";
+  try{
+    const r=await fetch("api/move",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({game,token,action:b.dataset.a})});
+    if(!r.ok) err=(await r.json().catch(()=>({}))).error||"That didn't go through.";
+  }catch{ err="Couldn't reach the table. Try again."; }
+  if(err && lastTurn===turn){ yourTurn(turn); status(err,false); }
+});
 function status(text, busy=true){
   const st=$("status"); st.hidden=!text; st.classList.toggle("busy",busy); $("statusText").textContent=text;
 }
@@ -127,8 +173,9 @@ function updateGo(){
 }
 function resetTable(){
   if (es) { es.close(); es = null; }  // closing the stream also stops the game on the server
+  hideActions(); game = token = null; human = []; mine = null;
   clearInterval(timer); status(""); $("round").textContent = "";
-  $("log").innerHTML = '<div class="empty">Enter your name and press <b>Deal me in</b>.<br>Your agent takes the left seat and plays against Meera while Dealer Raju runs the table.</div>';
+  $("log").innerHTML = '<div class="empty">Enter your name and press <b>Deal me in</b>.<br>You take the left seat and play against Meera while Dealer Raju runs the table.</div>';
   $("pot").textContent = "0"; $("go").textContent = "Deal me in";
   document.querySelector(".pot").classList.remove("thinking");
   [["You",0],["Meera",1]].forEach(([n,i])=>{const s=$("s"+i);s.classList.remove("active","thinking");s.querySelector(".name").textContent=n;s.querySelector(".state").textContent="";s.querySelector(".chips").textContent="";s.querySelector(".cards").innerHTML=backs()});
@@ -149,10 +196,13 @@ $("go").onclick = () => {
   es.onmessage = e => {
     const m = JSON.parse(e.data);
     if (m.type === "queue") status(`The table is busy with another game. You're #${m.position} in line, and your game starts automatically.`);
-    if (m.type === "turn") thinking(m.who, m.seat);
+    if (m.type === "turn") { if (m.human) yourTurn(m); else { lastTurn = null; hideActions(); thinking(m.who, m.seat); } }
+    if (m.type === "yourcards") { mine = m; $("s"+m.seat).querySelector(".cards").innerHTML = cardsHTML(m.cards).replaceAll('class="c','class="c flip'); log(`You look at your cards: <b>${esc(m.hand)}</b>.`); }
     if (m.type === "setup") {
       names = m.players.map(p=>p.name); dealerName = m.dealer.name; hands = m.hands;
-      log(`You're in! Your agent sits down as <b>${esc(names[0])}</b>.`);
+      game = m.game; token = m.token; human = m.human || [];
+      log(human.length ? `You're in, <b>${esc(names[0])}</b>! When it's your turn, pick a move above the table. You have ${m.turn_seconds}s per move.`
+                       : `You're in! Your agent sits down as <b>${esc(names[0])}</b>.`);
       m.players.forEach((p,i)=>{const s=$("s"+i);s.querySelector(".name").textContent=p.name;s.querySelector(".cards").innerHTML=backs()});
       chips(m.players.map(p=>p.chips));
       $("dealer").textContent = "Dealer " + m.dealer.name;
@@ -162,6 +212,7 @@ $("go").onclick = () => {
     if (m.type === "move") {
       $("pot").textContent = m.pot; chips(m.chips); seatState(m.seen);
       [0,1].forEach(i=>$("s"+i).classList.toggle("active", names[i]===m.player));
+      if (human.includes(names.indexOf(m.player)) && m.fallback) log(`Time ran out, so you packed this hand.`);
       log(`<b>${esc(m.player)}</b> ${esc(m.text.replace(m.player + " ", ""))}${m.fallback?'<span class="tag">auto</span>':""}${m.say?` <span class="say">“${esc(m.say)}”</span>`:""}`);
     }
     if (m.type === "result") {
@@ -170,14 +221,14 @@ $("go").onclick = () => {
       log(`${esc(m.winner)} wins the pot of ${m.pot}. ` + m.reveal.map(r=>`${esc(r.name)}: ${esc(r.hand)}${r.packed?" (packed)":""}`).join(" · "), "result");
     }
     if (m.type === "end") {
-      es.close(); es = null; clearInterval(timer); status("Game over. Press Play again for a new game.", false);
+      es.close(); es = null; hideActions(); status("Game over. Press Play again for a new game.", false);
       [0,1].forEach(i=>$("s"+i).classList.remove("thinking")); document.querySelector(".pot").classList.remove("thinking");
       $("name").disabled = false; updateGo(); $("go").textContent = "Play again";
     }
   };
   es.onerror = () => {
     if (!es) return;
-    es.close(); es = null; clearInterval(timer);
+    es.close(); es = null; hideActions();
     status("Lost the connection to the table. Press Deal me in to try again.", false);
     $("name").disabled = false; updateGo();
   };

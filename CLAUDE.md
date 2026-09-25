@@ -14,7 +14,12 @@ Domain colour: **Agentic AI olive `#5C5A2E`** (tint `#ECEBDD`); follow the portf
 
 - Never show model or provider names (Ollama, Qwen, ...) or how it is hosted (tunnel, Mac) on any
   public page, including the portfolio card. Visitors see only the agents and the game.
-- Seat 1 is the visitor's typed name (played by an AI agent); seat 2 is Meera; dealer is Raju.
+- Seat 1 is the visitor's typed name, played by the visitor (`kind: human` in seats.yaml): the page
+  shows only the engine's legal moves, and `POST /api/move` {game, token, action} answers the
+  waiting turn. 45 s per move, then auto-pack; two misses in a row end the game. Seat 2 is Meera; dealer is Raju.
+- Tunnel traffic is JSON-only: the app answers only `GET /`, `GET /api/play` and `POST /api/move`
+  (application/json, ≤512 bytes, strict schema, extra fields rejected). The portfolio router
+  applies the same allowlist (`ALLOW` in worker.js). Never add uploads, forms or other routes.
 - Agent lines are spoken in the first person to the table: no "we", "user", "assistant", and no
   leaked reasoning. Free-text model output is never shown directly: every call uses a JSON schema.
 - Show whose turn it is at all times (the `turn` SSE event drives the sticky status bar).

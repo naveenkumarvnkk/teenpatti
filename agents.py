@@ -110,13 +110,17 @@ class DealerAgent(Agent):
 
 
 def build(cfg, player_name):
-    """Seats from seats.yaml; "{player}" becomes the visitor's name, {name}/{opponent} fill personas."""
+    """Seats from seats.yaml; "{player}" becomes the visitor's name, {name}/{opponent} fill personas.
+    Returns (dealer, players, names); a human seat's player is None."""
     d = cfg["defaults"]
     dealer = DealerAgent(**{**d, **cfg["dealer"]})
     seats = [dict(p, name=p["name"].replace("{player}", player_name)) for p in cfg["players"]]
     players = []
     for i, p in enumerate(seats):
+        if p.get("kind") == "human":  # played by the visitor from the page, not a model
+            players.append(None)
+            continue
         opp = seats[1 - i]["name"]
         text = p["instructions"].replace("{name}", p["name"]).replace("{opponent}", opp)
         players.append(PlayerAgent(**{**d, **p, "instructions": text}))
-    return dealer, players
+    return dealer, players, [p["name"] for p in seats]
