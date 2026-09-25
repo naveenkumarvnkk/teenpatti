@@ -3,8 +3,8 @@
 defaults:
   provider: ollama
   base_url: http://localhost:11434
-  model: qwen3:4b      # was qwen2.5:1.5b
-  think: false        # reasoning models: answer directly (much faster)
+  model: qwen3:4b-instruct   # same model as trading-agent's analyst: only one sits in RAM
+  think: false               # instruct build never "thinks"; kept for thinking models
   temperature: 0.8
 
 game:

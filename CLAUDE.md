@@ -18,8 +18,9 @@ Domain colour: **Agentic AI olive `#5C5A2E`** (tint `#ECEBDD`); follow the portf
 - Agent lines are spoken in the first person to the table: no "we", "user", "assistant", and no
   leaked reasoning. Free-text model output is never shown directly: every call uses a JSON schema.
 - Show whose turn it is at all times (the `turn` SSE event drives the sticky status bar).
-- Quality over latency is fine, but `think: true` on qwen3:4b took more than 60 s per move on the
-  8 GB Mac, so it stays off.
+- Model: `qwen3:4b-instruct`, shared with trading-agent's analyst so only one model is in RAM.
+  Use instruct (non-thinking) builds: the plain `qwen3:4b` tag is a thinking build that always
+  reasons (60+ s per move, and its reasoning leaks into replies even with think off).
 
 ## Layout
 
@@ -48,6 +49,8 @@ Domain colour: **Agentic AI olive `#5C5A2E`** (tint `#ECEBDD`); follow the portf
   can't run scripts in ~/Documents) at 07:58, 20:05 and login. Change hours in both places.
 - Models: Ollama on the same Mac. Current plan "Option B" = one small model, three personas.
   Next steps if quality is poor: Option A (three tiny different models) or C (players on APIs).
+  Changing the model: edit seats.yaml, `ollama pull` it, re-run deploy/install-hours.sh (it bakes
+  the model name into the 8 PM unload), and update trading-agent's config/app.yaml analyst.model.
 
 ## Notifications
 
