@@ -3,14 +3,29 @@ import json
 import re
 from pathlib import Path
 
+import httpx
 import yaml
 from fastapi import FastAPI, Query, Request
 from fastapi.responses import FileResponse, PlainTextResponse, StreamingResponse
 
 import agents
+import logging
 from engine import Hand, Player, describe, strength
 
 ROOT = Path(__file__).parent
+log = logging.getLogger("uvicorn.error")
+NOTIFIER = "http://127.0.0.1:8790/notify"  # shared notifier (portfolio/services/notifier) -> Discord
+
+
+def notify(text):
+    """Fire-and-forget: a game never waits on, or fails because of, the notifier."""
+    async def send():
+        try:
+            async with httpx.AsyncClient(timeout=3) as c:
+                await c.post(NOTIFIER, json={"app": "teenpatti", "text": text})
+        except Exception as e:
+            log.info("notifier unavailable: %r", e)
+    asyncio.get_running_loop().create_task(send())
 app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)  # no public API docs
 
 
@@ -65,6 +80,8 @@ def state_for(hand, me, opp):
 async def run_game(visitor):
     cfg = load_config()
     g = cfg["game"]
+    log.info("GAME_START player=%s waiting=%d", visitor, waiting)
+    notify(f"🃏 **{visitor}** just sat down at the table" + (f" ({waiting} more waiting)" if waiting else "") + ".")
     dealer, pagents = agents.build(cfg, visitor)
     seats = [Player(a.name, g["starting_chips"]) for a in pagents]
     yield sse("setup", dealer={"name": dealer.name}, hands=g["hands"],
@@ -104,6 +121,10 @@ async def run_game(visitor):
         yield sse("dealer", text=await dealer.narrate(f"{win.name} wins the pot of {hand.pot}: {how}."))
 
     champ = max(seats, key=lambda p: p.chips)
+    log.info("GAME_END player=%s winner=%s chips=%s", visitor, champ.name,
+             "/".join(f"{p.name}:{p.chips}" for p in seats))
+    notify(f"🏁 {visitor}'s game finished. Winner: **{champ.name}** ("
+           + " · ".join(f"{p.name} {p.chips}" for p in seats) + ")")
     yield sse("turn", who=dealer.name, seat=-1)
     yield sse("dealer", text=await dealer.narrate(
         f"Game over. {champ.name} leads with {champ.chips} chips. Thank {seats[0].name} for playing."))

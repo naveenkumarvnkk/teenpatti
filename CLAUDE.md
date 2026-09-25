@@ -49,6 +49,19 @@ Domain colour: **Agentic AI olive `#5C5A2E`** (tint `#ECEBDD`); follow the portf
 - Models: Ollama on the same Mac. Current plan "Option B" = one small model, three personas.
   Next steps if quality is poor: Option A (three tiny different models) or C (players on APIs).
 
+## Notifications
+
+`notify()` in app.py sends "sat down" / "game finished" events to the shared notifier
+(`portfolio/services/notifier`, 127.0.0.1:8790), which posts to Discord. Fire-and-forget: games
+never depend on it. The sandbox allows only that local port, not the internet.
+
+## Health check
+
+`scripts/doctor.sh` (fix mode by default, `--no-fix` to report only, `--restart` after code changes)
+checks the schedule, app (sandboxed, 127.0.0.1 only), tunnel, Ollama + model, the public URL, the
+origin lock and recent errors. During open hours it starts the app/tunnel if they are down; it never
+closes the table. The portfolio's `doctor-all.sh` runs it alongside the other apps.
+
 ## Run locally
 
 ```bash
