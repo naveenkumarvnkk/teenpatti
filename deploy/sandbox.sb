@@ -1,0 +1,13 @@
+;; macOS sandbox for the Teen Patti app process. Even if the app had a bug, it could not read your
+;; home folder (Documents, Desktop, .ssh, ...) or write anywhere but its own log, and it can only
+;; talk to Ollama and the tunnel on this Mac. Rendered by install-app.sh (paths filled in).
+(version 1)
+(allow default)
+(deny file-read-data (subpath "/Users/vkunisetty"))
+(allow file-read-data (subpath "/Users/vkunisetty/Documents/Projects/teenpatti"))
+(deny file-write* (subpath "/Users/vkunisetty"))
+(allow file-write* (literal "/Users/vkunisetty/Documents/Projects/teenpatti/teenpatti.log") (subpath "/Users/vkunisetty/Documents/Projects/teenpatti/__pycache__"))
+(deny network-outbound)
+(allow network-outbound (remote ip "localhost:11434"))
+(allow network-outbound (remote unix-socket))
+(allow network-bind (local ip "localhost:8765"))
