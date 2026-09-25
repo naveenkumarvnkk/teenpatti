@@ -22,7 +22,10 @@ fi
 case $mode in
   open)  start com.naveen.teenpatti; start com.naveen.teenpatti-tunnel ;;
   close) stop com.naveen.teenpatti-tunnel; stop com.naveen.teenpatti
-         [ -n "$MODEL" ] && ollama stop "$MODEL" 2>/dev/null ;;
+         [ -n "$MODEL" ] && ollama stop "$MODEL" 2>/dev/null
+         # tunnel is stopped now: keep its log to the last 2000 lines (the app trims its own log)
+         T=/tmp/teenpatti-tunnel.log
+         [ -f $T ] && tail -n 2000 $T > $T.tmp && mv $T.tmp $T ;;
   *) echo "usage: $0 [auto|open|close]"; exit 2 ;;
 esac
 echo "$(date '+%F %T') table $mode"

@@ -44,6 +44,25 @@ def _origin_key():
 ORIGIN_KEY = _origin_key()
 
 
+def trim_log(path=ROOT / "teenpatti.log", limit=5_000_000, keep=1_000_000):
+    """Runs at startup (each morning's open): if the log is over 5 MB, keep only the last 1 MB.
+    Rewritten in place, since launchd holds it open in append mode."""
+    try:
+        if path.stat().st_size <= limit:
+            return
+        with open(path, "r+b") as f:
+            f.seek(-keep, 2)
+            tail = f.read().split(b"\n", 1)[-1]  # start at a whole line
+            f.seek(0)
+            f.write(b"--- older lines trimmed ---\n" + tail)
+            f.truncate()
+    except OSError as e:
+        log.warning("log trim failed: %r", e)
+
+
+trim_log()
+
+
 # The only requests this app answers. Everything else (other paths/methods, uploads, form posts,
 # non-JSON bodies, big bodies) is refused before any handler runs.
 ROUTES = {("GET", "/"), ("GET", "/api/play"), ("POST", "/api/move")}
@@ -166,6 +185,8 @@ async def run_game(visitor):
                     state_for(hand, me, opp, history[1 - turn]), legal)
             history[turn].append(action)
             text, done = hand.apply(me, action)
+            log.info("MOVE hand=%d seat=%d who=%s action=%s auto=%s", n, turn,
+                     "human" if pagents[turn] is None else me.name, action, fallback)
             yield sse("move", player=me.name, action=action, say=say, fallback=fallback, text=text,
                       pot=hand.pot, chips=[p.chips for p in seats], seen=[p.seen for p in seats])
             if action == "see" and pagents[turn] is None:
