@@ -73,6 +73,26 @@
   .actions .timer{margin-left:auto;font:500 13px "JetBrains Mono",monospace;color:var(--agent)}
   .c.flip{animation:flip .4s ease both}
   @keyframes flip{from{transform:rotateY(90deg)}to{transform:none}}
+  .win{position:fixed;inset:0;z-index:20;display:none;place-items:center;padding:16px;background:#0D0D0D8c;overflow:hidden}
+  .win.on{display:grid}
+  .win .box{position:relative;z-index:2;max-width:440px;width:100%;text-align:center;background:var(--surface);color:var(--ink);border:1px solid var(--agent);border-radius:20px;padding:26px 22px 22px;box-shadow:0 20px 60px #0006;animation:pop .5s cubic-bezier(.2,1.4,.4,1) both}
+  .win .eyebrow{margin:0}
+  .win h2{font:600 clamp(26px,6vw,36px)/1.1 "Space Grotesk",sans-serif;margin:8px 0 4px;letter-spacing:-.02em}
+  .win h2 em{font:italic 400 1.1em "Instrument Serif",serif;color:var(--agent)}
+  .win .potwon{font:italic 400 44px/1 "Instrument Serif",serif;color:var(--agent);margin:6px 0 10px}
+  .win .hands{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0 4px}
+  .win .hands>div{background:var(--agent-t);border-radius:12px;padding:10px 6px;font-size:13px}
+  .win .hands>div.w{outline:2px solid var(--agent)}
+  .win .hands .cards{margin-top:6px;min-height:0}
+  .win .why{color:var(--muted);font-size:13px;margin:8px 0 0}
+  .win .btns{display:flex;gap:8px;justify-content:center;margin-top:18px;flex-wrap:wrap}
+  .win .btns button{background:var(--agent);color:#F2EFEA}
+  .win .btns button.ghost{background:transparent;color:var(--ink)}
+  .win .wait{font:500 12px "JetBrains Mono",monospace;color:var(--muted);margin-top:10px;min-height:16px}
+  .confetti i{position:absolute;top:-12px;width:9px;height:14px;border-radius:2px;z-index:1;animation:fall linear forwards}
+  @keyframes fall{to{transform:translateY(105vh) rotate(720deg);opacity:.7}}
+  @keyframes pop{from{transform:scale(.7);opacity:0}to{transform:none;opacity:1}}
+  @media (prefers-reduced-motion:reduce){.confetti{display:none}}
   @keyframes pulse{50%{opacity:.25;transform:scale(.7)}}
   @keyframes up{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
   @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
@@ -110,10 +130,69 @@
     <div class="seat" id="s1"><div class="name">Meera</div><div class="state"></div><div class="chips"></div><div class="cards"></div></div>
   </div>
   <div class="log" id="log" aria-live="polite"></div>
+  <div class="win" id="win" role="dialog" aria-modal="true" aria-labelledby="winTitle">
+    <div class="confetti" id="confetti" aria-hidden="true"></div>
+    <div class="box">
+      <div class="eyebrow" id="winHand">Hand 1</div>
+      <h2 id="winTitle"></h2>
+      <div class="potwon" id="winPot"></div>
+      <div class="hands" id="winHands"></div>
+      <p class="why" id="winWhy"></p>
+      <div class="btns" id="winBtns"></div>
+      <div class="wait" id="winWait"></div>
+    </div>
+  </div>
   <p class="foot">Play-money demo only. No real stakes. One game at a time; if the table is busy you'll join a short queue.</p>
 </main>
 <script>
 const $ = id => document.getElementById(id);
+let handNo = 0, winTimer = null;
+function confetti(){
+  const c=$("confetti"); c.innerHTML="";
+  const cols=["#5C5A2E","#ECEBDD","#C9A227","#557373","#9A3B2E","#F2EFEA"];
+  for(let i=0;i<90;i++){const e=document.createElement("i");
+    e.style.cssText=`left:${Math.random()*100}%;background:${cols[i%cols.length]};animation-duration:${2.2+Math.random()*2}s;animation-delay:${Math.random()*.6}s;transform:rotate(${Math.random()*360}deg)`;
+    c.append(e);}
+}
+function hideWin(){ $("win").classList.remove("on"); $("winBtns").innerHTML=""; clearInterval(winTimer); $("confetti").innerHTML=""; }
+function showWin(m){
+  const meWon = human.includes(names.indexOf(m.winner)), loser = m.reveal.find(r=>r.name!==m.winner);
+  $("winHand").textContent = `Hand ${handNo} of ${hands}`;
+  $("winTitle").innerHTML = meWon ? `You <em>win</em>, ${esc(m.winner)}!` : `${esc(m.winner)} <em>wins</em>`;
+  $("winPot").textContent = `+${m.pot} chips`;
+  $("winHands").innerHTML = m.reveal.map(r=>`<div class="${r.name===m.winner?"w":""}"><b>${esc(r.name)}</b><br>${esc(r.hand)}${r.packed?" · packed":""}<div class="cards">${cardsHTML(r.cards)}</div></div>`).join("");
+  $("winWhy").textContent = loser.packed ? `${loser.name} packed, so the pot goes without a show.` : `Show: ${m.winner}'s ${m.reveal.find(r=>r.name===m.winner).hand} beats ${loser.hand}.`;
+  $("winBtns").innerHTML = ""; $("winWait").textContent = "Raju is settling the pot…";
+  $("win").classList.add("on");
+  if (meWon) confetti();
+}
+function askNext(m){
+  $("winBtns").innerHTML = `<button id="nextBtn">Deal hand ${m.next_hand}</button><button id="endBtn" class="ghost">End game</button>`;
+  const send = async a => {
+    $("winBtns").querySelectorAll("button").forEach(b=>b.disabled=true);
+    clearInterval(winTimer); $("winWait").textContent = a==="next" ? "Shuffling…" : "Ending the game…";
+    try{ const r=await fetch("api/move",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({game,token,action:a})});
+      if(!r.ok) $("winWait").textContent="The table moved on.";
+    }catch{ $("winWait").textContent="Couldn't reach the table."; }
+  };
+  $("nextBtn").onclick = () => send("next"); $("endBtn").onclick = () => send("end");
+  $("nextBtn").focus();
+  const tick=()=>{const left=Math.max(0,Math.round(m.deadline-Date.now()/1000)); if($("nextBtn").disabled) return;
+    $("winWait").textContent=`The game ends in ${left}s if you don't choose.`;};
+  tick(); winTimer=setInterval(tick,1000);
+  status("Your call: next hand or end the game?", false);
+}
+function showFinal(){
+  const chipsNow=[0,1].map(i=>parseInt($("s"+i).querySelector(".chips").textContent)||0);
+  const top = chipsNow[0]===chipsNow[1] ? -1 : chipsNow[0]>chipsNow[1] ? 0 : 1;
+  $("winHand").textContent = "Game over";
+  $("winTitle").innerHTML = top<0 ? "It's a <em>tie</em>" : human.includes(top) ? `You <em>take the table</em>!` : `${esc(names[top])} <em>takes the table</em>`;
+  $("winPot").textContent = names.map((n,i)=>`${n} ${chipsNow[i]}`).join(" · ");
+  $("winHands").innerHTML = ""; $("winWhy").textContent = "Thanks for playing.";
+  $("winBtns").innerHTML = `<button id="closeWin">Close</button>`; $("winWait").textContent = "";
+  $("closeWin").onclick = hideWin;
+  $("win").classList.add("on"); if (human.includes(top)) confetti(); $("closeWin").focus();
+}
 let lastTurn = null, names = [], dealerName = "Raju", es = null, hands = 3, timer = null, game = null, token = null, human = [], mine = null;
 const actions = document.querySelectorAll("#actions button");
 function hideActions(){ $("actions").classList.remove("on"); clearInterval(timer); }
@@ -173,7 +252,7 @@ function updateGo(){
 }
 function resetTable(){
   if (es) { es.close(); es = null; }  // closing the stream also stops the game on the server
-  hideActions(); game = token = null; human = []; mine = null;
+  hideActions(); hideWin(); game = token = null; human = []; mine = null;
   clearInterval(timer); status(""); $("round").textContent = "";
   $("log").innerHTML = '<div class="empty">Enter your name and press <b>Deal me in</b>.<br>You take the left seat and play against Meera while Dealer Raju runs the table.</div>';
   $("pot").textContent = "0"; $("go").textContent = "Deal me in";
@@ -208,7 +287,8 @@ $("go").onclick = () => {
       $("dealer").textContent = "Dealer " + m.dealer.name;
     }
     if (m.type === "dealer") log(`<b>${esc(dealerName)}:</b> ${esc(m.text)}`, "dealer");
-    if (m.type === "hand") { $("pot").textContent=m.pot; chips(m.chips); [0,1].forEach(i=>$("s"+i).querySelector(".cards").innerHTML=backs()); log(`Hand ${m.n}`, "hand"); $("round").textContent = `Hand ${m.n} of ${hands}`; seatState([false,false]); }
+    if (m.type === "between") askNext(m);
+    if (m.type === "hand") { hideWin(); handNo = m.n; $("pot").textContent=m.pot; chips(m.chips); [0,1].forEach(i=>$("s"+i).querySelector(".cards").innerHTML=backs()); log(`Hand ${m.n}`, "hand"); $("round").textContent = `Hand ${m.n} of ${hands}`; seatState([false,false]); }
     if (m.type === "move") {
       $("pot").textContent = m.pot; chips(m.chips); seatState(m.seen);
       [0,1].forEach(i=>$("s"+i).classList.toggle("active", names[i]===m.player));
@@ -218,10 +298,11 @@ $("go").onclick = () => {
     if (m.type === "result") {
       chips(m.chips);
       m.reveal.forEach((r,i)=>$("s"+i).querySelector(".cards").innerHTML=cardsHTML(r.cards));
+      showWin(m);
       log(`${esc(m.winner)} wins the pot of ${m.pot}. ` + m.reveal.map(r=>`${esc(r.name)}: ${esc(r.hand)}${r.packed?" (packed)":""}`).join(" · "), "result");
     }
     if (m.type === "end") {
-      es.close(); es = null; hideActions(); status("Game over. Press Play again for a new game.", false);
+      es.close(); es = null; hideActions(); if (human.length) showFinal(); status("Game over. Press Play again for a new game.", false);
       [0,1].forEach(i=>$("s"+i).classList.remove("thinking")); document.querySelector(".pot").classList.remove("thinking");
       $("name").disabled = false; updateGo(); $("go").textContent = "Play again";
     }

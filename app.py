@@ -97,6 +97,7 @@ waiting = 0
 
 TURN_SECONDS = 45     # a human seat that doesn't move in time packs the hand
 MAX_TIMEOUTS = 2      # ...and after this many in a row the game ends
+NEXT_SECONDS = 60     # between hands: no answer to "next hand or end?" ends the game
 pending = {}          # game id -> {"token", "seat", "legal", "future"} while a human must move
 
 
@@ -105,7 +106,7 @@ class Move(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
     game: str = Field(min_length=16, max_length=64, pattern=r"^[A-Za-z0-9_-]+$")
     token: str = Field(min_length=16, max_length=64, pattern=r"^[A-Za-z0-9_-]+$")
-    action: Literal["chaal", "raise", "see", "show", "pack"]
+    action: Literal["chaal", "raise", "see", "show", "pack", "next", "end"]
 
 
 def load_config():
@@ -203,6 +204,21 @@ async def run_game(visitor):
                     f"{describe(lose.cards)} ({' '.join(lose.cards)}) at the show")
         yield sse("turn", who=dealer.name, seat=-1)
         yield sse("dealer", text=await dealer.narrate(f"{win.name} wins the pot of {hand.pot}: {how}."))
+        last = n == g["hands"] or any(p.chips < g["boot"] for p in seats) or timeouts >= MAX_TIMEOUTS
+        if human and not last:  # the visitor decides whether to deal the next hand
+            deadline = time.time() + NEXT_SECONDS
+            yield sse("between", next_hand=n + 1, hands=g["hands"], deadline=deadline)
+            fut = asyncio.get_running_loop().create_future()
+            pending[game_id] = {"token": token, "legal": ["next", "end"], "future": fut}
+            try:
+                choice = await asyncio.wait_for(fut, NEXT_SECONDS)
+            except asyncio.TimeoutError:
+                choice = "end"
+            finally:
+                pending.pop(game_id, None)
+            log.info("BETWEEN hand=%d choice=%s", n, choice)
+            if choice == "end":
+                break
 
     champ = max(seats, key=lambda p: p.chips)
     log.info("GAME_END player=%s winner=%s chips=%s", visitor, champ.name,
